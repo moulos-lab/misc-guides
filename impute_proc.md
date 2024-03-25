@@ -1,8 +1,50 @@
 Imputation process for studies with existing PLINK files
 ================================================================================
 
+<!-- TOC start (generated with https://github.com/derlin/bitdowntoc) -->
+
+# Table of contents
+
+- [Prerequisites](#prerequisites)
+   * [Software](#software)
+   * [Data](#data)
+- [Process outline](#process-outline)
+   * [Pre-imputation](#pre-imputation)
+   * [Post-imputation linear processing](#post-imputation-linear-processing)
+   * [Post-imputation parallel processing](#post-imputation-parallel-processing)
+   * [Final conversion to PLINK format](#final-conversion-to-plink-format)
+- [For the brave](#for-the-brave)
+- [Detailed steps](#detailed-steps)
+   * [Steps 1-3](#steps-1-3)
+   * [Step 4](#step-4)
+   * [Step 5-6](#step-5-6)
+   * [Step 7](#step-7)
+   * [Step 8](#step-8)
+   * [Step 9](#step-9)
+   * [Step 10](#step-10)
+   * [Step 11](#step-11)
+   * [Step 12](#step-12)
+   * [Step 13](#step-13)
+   * [Step 14](#step-14)
+      + [Clean up](#clean-up)
+- [Alternative post-imputation processing](#alternative-post-imputation-processing)
+   * [Step 9](#step-9-1)
+   * [Step 10](#step-10-1)
+   * [Step 11](#step-11-1)
+   * [Step 12](#step-12-1)
+   * [Step 13](#step-13-1)
+   * [Step 14](#step-14-1)
+      + [Clean up](#clean-up-1)
+- [Other steps](#other-steps)
+      + [TODO](#todo)
+      + [Tests](#tests)
+
+<!-- TOC end -->
+
+<!-- TOC --><a name="prerequisites"></a>
 # Prerequisites
 
+<!-- TOC --><a name="software"></a>
 ## Software
 
 * [bcftools](https://github.com/samtools/bcftools/releases/download/1.19/bcftools-1.19.tar.bz2) ([manual](https://samtools.github.io/bcftools/bcftools.html))
@@ -11,6 +53,7 @@ Imputation process for studies with existing PLINK files
 * The prisma R package or another way to modify PLINK files in terms of 
 major/minor allele order to comply with the VCF format
 
+<!-- TOC --><a name="data"></a>
 ## Data
 
 * Genotypic data in PLINK or **proper** [VCF](https://samtools.github.io/hts-specs/VCFv4.2.pdf) format.
@@ -41,8 +84,10 @@ samtools faidx hg38_no_alt.fa
 rm hg38_no_alt.fa
 ```
 
+<!-- TOC --><a name="process-outline"></a>
 # Process outline
 
+<!-- TOC --><a name="pre-imputation"></a>
 ## Pre-imputation
 
 1. Read PLINK into a `GWASExperiment` object in prisma.
@@ -57,7 +102,11 @@ and output compressed and indexed.
 7. Split the sorted output per chromosome.
 8. Upload the resulting chromosome-wise VCFs to TOPMED server for imputation.
 
+<!-- TOC --><a name="post-imputation-linear-processing"></a>
 ## Post-imputation linear processing
+
+The following steps can be executed in a single-core system in a merged VCF file
+with all chromosomes. It will be significantly slower.
 
 9. Concatenate the resulting files (one large VCF per chromosome) with 
 `bcftools concat`.
@@ -71,7 +120,11 @@ a threshold (e.g. 0.2).
 rs538643934) remain because of their existence in the reference panel. Fix this
 with `bcftools norm`.
 
+<!-- TOC --><a name="post-imputation-parallel-processing"></a>
 ## Post-imputation parallel processing
+
+The following steps can be executed in a multi-core Unix system and involve
+parallel processing per chromosome. It will be significantly faster.
 
 9. The resulting files do not have an ID for each SNP. Fix this with 
 `bcftools annotate` in parallel for each chromosome.
@@ -86,16 +139,18 @@ with `bcftools norm`.
 13. Concatenate the resulting files (one large VCF per chromosome) with 
 `bcftools concat`.
 
+<!-- TOC --><a name="final-conversion-to-plink-format"></a>
 ## Final conversion to PLINK format
 
 14. After concatenation, convert to PLINK bid/bed/fam with `plink --vcf`.
 
 
+<!-- TOC --><a name="for-the-brave"></a>
 # For the brave
 
 The following bash script covers in almost one step, Steps 9-13 of the post
 imputation process. It is also faster, as it firstly filters `TYPED` and 
-'R2<0.2' variants and then assigning IDs to the remaining. The ID assignment
+`R2<0.2` variants and then assigning IDs to the remaining. The ID assignment
 process of `bcftools` is slower than filtering, so if we assign IDs 
 post-filtering, fewer IDs are assigned resulting in a faster completion. The 
 final output is most probable suitable for PLINK operations as it is most
@@ -104,7 +159,7 @@ probably fully annotated and deduplicated.
 It is advised that you study the whole process in detail before running the
 following script. However, because of piping, this will run blazingly faster 
 than individual steps but you must make sure you fully understand what is going
-on.
+on. Note that VCF indexing is required for downstream merging operations.
 
 ```
 #!/bin/bash
@@ -123,6 +178,9 @@ wait
 echo "Concatenating chromosomes..."
 bcftools concat -Oz -o imputed_cleaned.vcf.gz chr{1..22}_proc.vcf.gz
 
+echo "Indexing..."
+tabix imputed_cleaned.vcf.gz
+
 echo "Cleaning..."
 rm chr*proc.vcf.gz
 
@@ -140,12 +198,14 @@ plink --vcf imputed_cleaned.vcf.gz --make-bed --out imputed_cleaned
 ```
 
 
+<!-- TOC --><a name="detailed-steps"></a>
 # Detailed steps
 
 We assume that we start from a bim/bed/fam triplet of PLINK files named
 `data.bim`, `data.bed`, `data.fam` and the reference genome is hg19 (or GRCh37).
 The other option is hg38 (or GRCh38).
 
+<!-- TOC --><a name="steps-1-3"></a>
 ## Steps 1-3
 
 **1. Read PLINK into a `GWASExperiment` object in prisma.**
@@ -169,6 +229,7 @@ outdata <- harmonizeWithReference(indata)
 writePlink(outdata,outBase="data_prevcf")
 ```
 
+<!-- TOC --><a name="step-4"></a>
 ## Step 4
 
 **4.Convert the output PLINK files to VCF with `plink`.**
@@ -177,6 +238,7 @@ writePlink(outdata,outBase="data_prevcf")
 plink --bfile data_prevcf --keep-allele-order --recode vcf --out data_unheaded
 ```
 
+<!-- TOC --><a name="step-5-6"></a>
 ## Step 5-6
 
 **5. The output VCF does not contain a proper VCF header. Correct this with 
@@ -190,6 +252,7 @@ bcftools sort -Oz -o data.vcf.gz data_unsorted.vcf
 tabix data.vcf.gz
 ```
 
+<!-- TOC --><a name="step-7"></a>
 ## Step 7
 
 **7. Split the sorted output per chromosome.**
@@ -198,6 +261,7 @@ tabix data.vcf.gz
 bcftools index -s data.vcf.gz | cut -f1 | while read C; do bcftools view -Oz -o data_chr${C}.vcf.gz data.vcf.gz "${C}"; done
 ```
 
+<!-- TOC --><a name="step-8"></a>
 ## Step 8
 
 Create an account in [TOPMED imputation server](https://imputation.biodatacatalyst.nhlbi.nih.gov/).
@@ -208,6 +272,7 @@ follow the instruction to download the results. These are 22 VCF files and 22
 zipped text files with information for each imputed variant, contained in
 22 zip encrypted zip files. The password to decrypt is emailed.
 
+<!-- TOC --><a name="step-9"></a>
 ## Step 9
 
 **9. Concatenate the resulting files (one large VCF per chromosome) with 
@@ -226,6 +291,7 @@ so you can log out safely without interrupting your work. You can do this with
 nohup bcftools concat -Oz -o imputed.vcf.gz chr{1..22}.dose.vcf.gz &
 ```
 
+<!-- TOC --><a name="step-10"></a>
 ## Step 10
 
 **10. The resulting file does not have an ID for each SNP. Fix this with 
@@ -242,6 +308,7 @@ with `bcftools annotate`. The ID will be of the format:
 bcftools annotate --set-id +'%CHROM\:%POS\:%REF\:%FIRST_ALT' -Oz -o imputed_ids.vcf.gz imputed.vcf.gz
 ```
 
+<!-- TOC --><a name="step-11"></a>
 ## Step 11
 
 **11. Use `bcftools filter` to remove the `TYPED` variants from the imputation 
@@ -251,6 +318,7 @@ results as this will later cause problems with duplicates.**
 bcftools filter -e 'INFO/TYPED=1' -Oz -o imputed_ids_only.vcf.gz imputed_ids.vcf.gz
 ```
 
+<!-- TOC --><a name="step-12"></a>
 ## Step 12
 
 **12. Use `bcftools filter` to filter variants with low imputation score less 
@@ -265,6 +333,7 @@ want to experiment with different R<sup>2</sup> thresholds. However, we can
 apply them at the same time by changing the filter expression to 
 `INFO/TYPED=1 | INFO/R2<0.2`.
 
+<!-- TOC --><a name="step-13"></a>
 ## Step 13
 
 **13. Some deconvoluted duplicate complex indels remain (e.g. rs893063787,
@@ -280,6 +349,7 @@ and `--collapse` in [Common Options](https://samtools.github.io/bcftools/bcftool
 bcftools norm --rm-dup indels -Oz -o imputed_ids_only_filtered_rmdup.vcf.gz imputed_ids_only_filtered.vcf.gz
 ```
 
+<!-- TOC --><a name="step-14"></a>
 ## Step 14
 
 We are ready to create the final PLINK files. Most probably, they are ready for
@@ -290,6 +360,7 @@ should be required.
 plink --vcf imputed_ids_only_filtered_rmdup.vcf.gz --make-bed --out imputed_ids_only_filtered_rmdup
 ```
 
+<!-- TOC --><a name="clean-up"></a>
 ### Clean up
 
 ```
@@ -297,6 +368,7 @@ rm data_prevcf* data_unheaded* data_unsorted* imputed.vcf.gz imputed_ids.vcf.gz 
 ```
 
 
+<!-- TOC --><a name="alternative-post-imputation-processing"></a>
 # Alternative post-imputation processing
 
 As the VCF files after imputation are huge and even `bcftools` appear slow. We 
@@ -307,6 +379,7 @@ storage for intermediate steps.
 
 The following start after downloading the imputation results.
 
+<!-- TOC --><a name="step-9-1"></a>
 ## Step 9
 
 **9. The resulting files do not have an ID for each SNP. Fix this with 
@@ -331,6 +404,7 @@ Wait for this to finish before moving to the next step.
 **HINT**: The above cannot run with `nohup`. Consider placing in a small shell 
 script like `id.sh` and theh `nohup sh id.sh &`.
 
+<!-- TOC --><a name="step-10-1"></a>
 ## Step 10
 
 **10. Use `bcftools filter` to remove the `TYPED` variants from the imputation 
@@ -346,6 +420,7 @@ done
 
 Wait for this to finish before moving to the next step.
 
+<!-- TOC --><a name="step-11-1"></a>
 ## Step 11
 
 **11. Use `bcftools filter` to filter variants with low imputation score less 
@@ -363,6 +438,7 @@ want to experiment with different R<sup>2</sup> thresholds. However, we can
 apply them at the same time by changing the filter expression to 
 `INFO/TYPED=1 | INFO/R2<0.2`.
 
+<!-- TOC --><a name="step-12-1"></a>
 ## Step 12
 
 **12. Some deconvoluted duplicate complex indels remain (e.g. rs893063787,
@@ -383,6 +459,7 @@ done
 
 Wait for this to finish.
 
+<!-- TOC --><a name="step-13-1"></a>
 ## Step 13
 
 **12. Concatenate the resulting files (one large VCF per chromosome) with 
@@ -392,6 +469,7 @@ Wait for this to finish.
 bcftools concat -Oz -o imputed_cleaned.vcf.gz chr{1..22}_ids_only_filtered_rmdup.dose.vcf.gz
 ```
 
+<!-- TOC --><a name="step-14-1"></a>
 ## Step 14
 
 We are ready to create the final PLINK files. Most probably, they are ready for
@@ -402,12 +480,14 @@ should be required.
 plink --vcf imputed_cleaned.vcf.gz --make-bed --out imputed_cleaned
 ```
 
+<!-- TOC --><a name="clean-up-1"></a>
 ### Clean up
 
 ```
 rm data_prevcf* data_unheaded* data_unsorted* chr*_ids.dose.vcf.gz chr*_ids_only.dose.vcf.gz chr*_ids_only_filtered.dose.vcf.gz
 ```
 
+<!-- TOC --><a name="other-steps"></a>
 # Other steps
 
 After post-imputation processing of multiple datasets, it should also be easier
@@ -416,11 +496,13 @@ to PLINK format for population-statistics-based processing of the merged
 dataset.
 
 
+<!-- TOC --><a name="todo"></a>
 ### TODO
 
 * Consider firstly removing the `TYPED` and low imputation score variants and
 then adding ids as the id-addition step is much slower.
 
+<!-- TOC --><a name="tests"></a>
 ### Tests
 
 1. Duplicate detection
