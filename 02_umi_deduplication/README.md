@@ -154,7 +154,7 @@ done
 <!-- TOC --><a name="preprocessing-and-quality-control-1"></a>
 ## Preprocessing and Quality Control
 
-Trim adapter sequences, Ns and low-quality base calls, clip the 5' end of read 2, filter short reads and run quality control with `trim_galore`. Aggregate quality control reports with `multiqc`.
+Trim adapter sequences, Ns and low-quality base calls, filter short reads and run quality control with `trim_galore`. Aggregate quality control reports with `multiqc`.
 
 ```{bash}
 #!/bin/bash
@@ -185,7 +185,6 @@ do
     $TRIMGALORE_COMMAND \
         --quality 20 \
         --length 50 \
-        --clip_R2 20 \
         --output_dir $TRIMGALORE_OUTPUT \
         --path_to_cutadapt $CUTADAPT_COMMAND \
         --paired \
