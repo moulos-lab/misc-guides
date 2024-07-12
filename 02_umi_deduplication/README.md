@@ -1,27 +1,3 @@
----
-title: "UMI Deduplication to FastQ files"
-author: "Stelios Gkionis"
-date: "`r Sys.Date()`"
-output: 
-    rmdformats::robobook:
-      fig_width: 7
-      fig_height: 7
-      fig_caption: true
-      highlight: kate
-      lightbox: true
-      cards: true
-      use_bookdown: false
-      mathjax: null
-      self_contained: true
----
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(
-  echo = TRUE,
-  eval = FALSE
-  )
-```
-
 ### Usage note
 
 Replace `HOME_PATH=<PROJECT_DIR>` with your working directory.
