@@ -1,9 +1,7 @@
-UMI Deduplication from raw .fastq files to deduplicated .fastq files
+UMI Deduplication from raw .fastq files to deduplicated .fastq (or .bam) files
 ================================================================================
 
 <!-- TOC start (generated with https://github.com/derlin/bitdowntoc) -->
-
-# Table of contents
 
 - [Prerequisites](#prerequisites)
    * [Software](#software)
@@ -13,14 +11,14 @@ UMI Deduplication from raw .fastq files to deduplicated .fastq files
    * [Preprocessing and Quality Control](#preprocessing-and-quality-control)
    * [Mapping](#mapping)
    * [UMI Deduplication](#umi-deduplication)
-   * [Generation of FastQ Files](#generation-of-fastq-files)
-- [Detailed Scripts](#detailed-scripts)
+   * [Generation of FastQ Files (Optional)](#generation-of-fastq-files-optional)
+- [Detailed Usage Example with Scripts](#detailed-usage-example-with-scripts)
       + [Usage Note](#usage-note)
    * [UMI Extraction](#umi-extraction-1)
    * [Preprocessing and Quality Control](#preprocessing-and-quality-control-1)
    * [Mapping](#mapping-1)
    * [UMI Deduplication](#umi-deduplication-1)
-   * [Generate valid .fastq files](#generate-valid-fastq-files)
+   * [Generate valid .fastq files (Optional)](#generate-valid-fastq-files-optional)
 
 <!-- TOC end -->
 
@@ -96,14 +94,14 @@ unzip mm10.zip
 14. Index the filtered `.bam` file with `samtools index`.
 15. Deduplicate reads with `umi_tools dedup`.
 
-<!-- TOC --><a name="generation-of-fastq-files"></a>
-## Generation of FastQ Files
+<!-- TOC --><a name="generation-of-fastq-files-optional"></a>
+## Generation of FastQ Files (Optional)
 
 16. Re-order `.bam` file to group reads by name with `samtools collate`.
 17. Generate the `.fastq` files with `samtools fastq`.
 
-<!-- TOC --><a name="detailed-scripts"></a>
-# Detailed Scripts
+<!-- TOC --><a name="detailed-usage-example-with-scripts"></a>
+# Detailed Usage Example with Scripts
 
 <!-- TOC --><a name="usage-note"></a>
 ### Usage Note
@@ -343,8 +341,8 @@ do
 done
 ```
 
-<!-- TOC --><a name="generate-valid-fastq-files"></a>
-## Generate valid .fastq files
+<!-- TOC --><a name="generate-valid-fastq-files-optional"></a>
+## Generate valid .fastq files (Optional)
 
 Re-order `.bam` file to group reads by name, then generate the `.fastq` files. Optionally, also generate a singletons file using `-0` to capture any errors as this file should be empty. Alternatively run `samtools flagstat` on the `.bam` file to see if `read1` and `read2` flags are equal.
 
