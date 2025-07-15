@@ -53,7 +53,7 @@ wget https://genome-idx.s3.amazonaws.com/hisat/mm10_genome.tar.gz
 tar –xvzf mm10_genome.tar.gz
 ```
 
-To get the `bowtie2 index for mm10:
+To get the `bowtie2` index for mm10:
 
 ```
 wget https://genome-idx.s3.amazonaws.com/bt/mm10.zip
