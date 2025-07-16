@@ -187,6 +187,7 @@ do
         --path_to_cutadapt $CUTADAPT_COMMAND \
         --paired \
         --fastqc \
+        --cores $CORES \
         --trim-n $F1 $F2 &
 done
 
