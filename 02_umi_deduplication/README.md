@@ -239,8 +239,8 @@ for SAMPLE_DIR in "$HOME_PATH"/*/; do
 
     SAMPLE=$(basename "$SAMPLE_DIR")
 
-    for FILE in $FASTQ_PATH/*_1.fastq.gz; do
-        BASE=`basename $FILE | sed s/_1\.fastq\.gz//`
+    for FILE in $FASTQ_PATH/*_1.fq.gz; do
+        BASE=`basename $FILE | sed s/_1\.fq\.gz//`
         mv $TRIMGALORE_OUTPUT/$BASE"_1_val_1.fq.gz" \
             $TRIMGALORE_OUTPUT/$BASE"_1.fastq.gz"
         mv $TRIMGALORE_OUTPUT/$BASE"_2_val_2.fq.gz" \
@@ -584,3 +584,4 @@ done
 
 wait
 ```
+
