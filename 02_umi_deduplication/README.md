@@ -35,8 +35,9 @@ UMI Deduplication from raw .fastq files to deduplicated .fastq (or .bam) files
 * [TrimGalore](https://github.com/FelixKrueger/TrimGalore/archive/refs/tags/0.6.10.tar.gz) ([manual](https://github.com/FelixKrueger/TrimGalore/blob/master/Docs/Trim_Galore_User_Guide.md))
 * [MultiQC](https://github.com/MultiQC/MultiQC#installation) ([manual](https://multiqc.info/docs/))
 * [samtools](https://github.com/samtools/samtools/releases/download/1.19.2/samtools-1.19.2.tar.bz2) ([manual](https://www.htslib.org/doc/samtools.html))
-* [HISAT2](https://cloud.biohpc.swmed.edu/index.php/s/oTtGWbWjaxsQ2Ho/download) ([manual](https://daehwankimlab.github.io/hisat2/manual/))
-* [Bowtie 2](https://sourceforge.net/projects/bowtie-bio/files/bowtie2/2.4.2/bowtie2-2.4.2-sra-linux-x86_64.zip/download) ([manual](https://bowtie-bio.sourceforge.net/bowtie2/manual.shtml))
+* [HISAT2](https://cloud.biohpc.swmed.edu/index.php/s/oTtGWbWjaxsQ2Ho/download) ([manual](https://daehwankimlab.github.io/hisat2/manual/)) (For RNA Reads)
+* [Bowtie 2](https://sourceforge.net/projects/bowtie-bio/files/bowtie2/2.4.2/bowtie2-2.4.2-sra-linux-x86_64.zip/download) ([manual](https://bowtie-bio.sourceforge.net/bowtie2/manual.shtml)) (For RNA Reads)
+* [BWA](https://github.com/lh3/bwa/archive/refs/tags/v0.7.19.tar.gz)([manual](https://bio-bwa.sourceforge.net/bwa.shtml)) (For DNA Reads)
 * [Kent tools](https://github.com/ucscGenomeBrowser/kent/archive/refs/tags/v492_branch.1.tar.gz)([manual](https://github.com/ucscGenomeBrowser/kent))
 * [bedtools](https://github.com/arq5x/bedtools2/releases/download/v2.31.1/bedtools-2.31.1.tar.gz)([manual](https://bedtools.readthedocs.io/en/latest/))
 
@@ -51,6 +52,8 @@ UMI sequences are assumed to be the first 12 nucleotides on the forward read of 
 
 In this protocol we will use the UCSC GRCm38/mm10 mouse genome.
 
+For RNA reads:
+
 To get the `hisat2` index for mm10:
 
 ```
@@ -63,6 +66,16 @@ To get the `bowtie2` index for mm10:
 ```
 wget https://genome-idx.s3.amazonaws.com/bt/mm10.zip
 unzip mm10.zip
+```
+
+For DNA reads:
+
+We need to build the `bwa` index:
+
+```
+wget ftp://hgdownload.cse.ucsc.edu/goldenPath/mm10/bigZips/mm10.fa.gz
+tar -xzvf mm10.fa.gz
+bwa index mm10.fa
 ```
 
 <!-- TOC --><a name="process-outline"></a>
@@ -84,7 +97,8 @@ unzip mm10.zip
 <!-- TOC --><a name="mapping"></a>
 ## Mapping
 
-6. Map the reads to the reference genome with `hisat2`, retaining the unmapped read pairs separately in `.fastq` files for the next step.
+6a. For RNA reads, map the reads to the reference genome with `hisat2`, retaining the unmapped read pairs separately in `.fastq` files for the next step.
+6b. For DNA reads, map using `bwa` instead, and skip to step 10. 
 7. Remap the unmapped read pairs with `bowtie2`.
 8. Convert the Hisat2 `.sam` output file to `.bam` format with `samtools view -bhS`.
 9. Merge the Hisat2 and Bowtie2 `.bam` output files into a single file with `samtools merge`.
@@ -265,7 +279,9 @@ wait
 <!-- TOC --><a name="mapping-1"></a>
 ## Mapping
 
-First map with HISAT2, keeping all the read pairs that do not map properly in separate `.fastq` files, so they can be remapped with Bowtie2. Then merge the results, index the final `.bam` file and cleanup intermediates.
+### For RNA Reads
+
+First map with `HISAT2`, keeping all the read pairs that do not map properly in separate `.fastq` files, so they can be remapped with `Bowtie2`. Then merge the results, sort and index the final `.bam` file and cleanup intermediates.
 
 ```{bash}
 #!/bin/bash
@@ -343,6 +359,68 @@ for SAMPLE_DIR in "$HOME_PATH"/*/; do
             $BAM_PATH/$SAMPLE".tmb"
         echo " "
     done
+done
+
+wait
+```
+
+### For DNA Reads
+
+Map with `bwa mem`, sort and index the final `.bam` file and cleanup intermediates.
+
+```{bash}
+#!/bin/bash
+set -euo pipefail
+
+HOME_PATH=<PROJECT_DIR>
+
+BWA_COMMAND=`which bwa`
+SAMTOOLS_COMMAND=`which samtools`
+
+BWA_INDEX=<BWA_REF_FASTA_FILE>
+
+CORES=32
+
+# Loop over sample directories
+for SAMPLE_DIR in "$HOME_PATH"/*/; do
+  SAMPLE=$(basename "$SAMPLE_DIR")
+
+  FASTQ_PATH="$SAMPLE_DIR/fastq_umi_qual"
+  BAM_PATH="$SAMPLE_DIR/bam_umi"
+
+  # Skip if fastq_umi directory does not exist
+  if [ ! -d "$FASTQ_PATH" ]; then
+    echo "Skipping $SAMPLE (no fastq_umi directory)"
+    continue
+  fi
+  if [ ! -d $BAM_PATH ]
+  then
+      mkdir -p $BAM_PATH
+  fi
+
+  for FILE in `ls $FASTQ_PATH/*_1.fastq.gz`
+  do
+      SAMPLE=`basename $FILE | sed s/_1\.fastq\.gz//`
+      echo "===== Mapping with bwa for $SAMPLE..."
+      
+      RG="@RG\tID:"$BASE"\tSM:"$SAMPLE"\tLB:WGS\tPL:MGI"
+      
+      $BWA_COMMAND mem \
+        -t $CORES \
+        -R $RG \
+        $BWA_INDEX \
+        $FASTQ_PATH/$SAMPLE"_1.fastq.gz" \
+        $FASTQ_PATH/$SAMPLE"_2.fastq.gz" | \
+      $SAMTOOLS_COMMAND view -bS -o $BAM_PATH/$SAMPLE".tmb" -
+      
+      echo "===== Coordinate sorting all reads for $SAMPLE..."
+      $SAMTOOLS_COMMAND sort -@ $CORES $BAM_PATH/$SAMPLE".tmb" > $BAM_PATH/$SAMPLE".bam"
+      $SAMTOOLS_COMMAND index -@ $CORES $BAM_PATH/$SAMPLE".bam"
+      
+      echo "===== Removing intermediate garbage for $SAMPLE..."
+      rm $BAM_PATH/$SAMPLE".tmb"
+      echo " "
+  done
 done
 
 wait
@@ -584,4 +662,5 @@ done
 
 wait
 ```
+
 
