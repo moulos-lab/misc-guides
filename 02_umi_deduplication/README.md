@@ -411,7 +411,7 @@ for SAMPLE_DIR in "$HOME_PATH"/*/; do
         $BWA_INDEX \
         $FASTQ_PATH/$SAMPLE"_1.fastq.gz" \
         $FASTQ_PATH/$SAMPLE"_2.fastq.gz" | \
-      $SAMTOOLS_COMMAND view -bS -o $BAM_PATH/$SAMPLE".tmb" -
+      $SAMTOOLS_COMMAND view -@ $CORES -bS -o $BAM_PATH/$SAMPLE".tmb" -
       
       echo "===== Coordinate sorting all reads for $SAMPLE..."
       $SAMTOOLS_COMMAND sort -@ $CORES $BAM_PATH/$SAMPLE".tmb" > $BAM_PATH/$SAMPLE".bam"
@@ -662,5 +662,6 @@ done
 
 wait
 ```
+
 
 
